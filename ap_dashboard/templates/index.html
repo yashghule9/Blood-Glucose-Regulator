@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Artificial Pancreas — Simulation Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      /* Minimal inline fallback styling (style.css optional) */
+      body { font-family: Arial, Helvetica, sans-serif; margin: 20px; background:#f7f9fc; color:#111; }
+      .container { max-width: 980px; margin: 0 auto; }
+      header { display:flex; align-items:center; gap:16px; margin-bottom: 18px; }
+      header img { height:56px; }
+      h1 { margin:0; font-size:22px; }
+      .metrics { display:flex; gap:12px; margin: 12px 0 18px; flex-wrap:wrap; }
+      .metric { background:white; padding:10px 14px; border-radius:8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); min-width:160px; }
+      .plots { display:grid; grid-template-columns: 1fr; gap: 14px; }
+      .plot-card { background:white; padding:8px; border-radius:8px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+      .plot-card img { width:100%; height:auto; border-radius:4px; display:block; }
+      .center { text-align:center; }
+      .download { display:inline-block; margin-top:10px; background:#1f6feb; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; }
+      .note { margin-top:12px; font-size:13px; color:#555; }
+      .error { background:#ffecec; color:#990000; padding:8px 12px; border-radius:6px; margin-bottom:12px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/3d/Medical-Icon-Glucose.svg" onerror="this.style.display='none'"/>
+        <div>
+          <h1>Artificial Pancreas — Simulation Dashboard</h1>
+          <div style="color:#444; font-size:13px;">Closed-loop MPC simulation results (MATLAB)</div>
+        </div>
+      </header>
+
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+
+      <section>
+        <h3>Key metrics</h3>
+        <div class="metrics">
+          <div class="metric"><strong>Peak glucose</strong><div style="font-size:18px; color:#111;">{{ metrics['Peak glucose'] }}</div></div>
+          <div class="metric"><strong>Settling time</strong><div style="font-size:18px; color:#111;">{{ metrics['Settling time'] }}</div></div>
+          <div class="metric"><strong>Time in range</strong><div style="font-size:18px; color:#111;">{{ metrics['Time-in-range'] }}</div></div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Plots</h3>
+        <div class="plots">
+          {% for p in plots %}
+            <div class="plot-card">
+              <h4 style="margin:6px 0 8px;">{{ p.replace('_',' ').replace('.png','') | capitalize }}</h4>
+              <img src="/results/{{ p }}" alt="{{ p }}">
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section style="margin-top:14px;">
+        <div class="center">
+          {% if zip_present %}
+            <a class="download" href="/results/AP_MPC_submission.zip">Download submission ZIP</a>
+          {% else %}
+            <span style="color:#666;">Submission ZIP not found.</span>
+          {% endif %}
+          <p class="note">Tip: If you rerun the MATLAB script, refresh this page to show updated plots.</p>
+        </div>
+      </section>
+
+      <footer style="margin-top:22px; color:#666; font-size:13px;">
+        <div>Files displayed from <code>/AP_MPC_results</code> folder. This dashboard is a local demo — do not expose to public internet during demo.</div>
+      </footer>
+    </div>
+  </body>
+</html>
