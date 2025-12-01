@@ -153,5 +153,12 @@ def api_summary():
     return jsonify(summary)
 
 
+@app.route('/health')
+def health():
+    """Simple healthcheck endpoint useful for load balancers & cloud platforms.
+    """
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     app.run(debug=True)
