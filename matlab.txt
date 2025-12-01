@@ -1,0 +1,106 @@
+% simulate_ap.m
+% Pure MATLAB simulation of an Artificial Pancreas (no toolboxes)
+% 3 meals + PID controller + time-series for Flask dashboard
+
+clear; clc;
+
+%% SIMULATION PARAMETERS
+T_end = 240;      % total time in minutes
+Ts    = 1;        % time step (min)
+
+% PID Controller Gains
+Kp = 0.02;
+Ki = 0.005;
+Kd = 0.01;
+
+% Target glucose (mg/dL)
+G_target = 100;
+
+%% MEALS (3 MEALS)
+% Times in minutes, sizes are arbitrary carb units / glucose input
+meal_times = [20, 90, 150];     % minutes
+meal_sizes = [40, 70, 50];      % relative sizes
+meal_duration = 30;             % duration of each meal effect (min)
+
+%% TIME VECTOR
+t_vec = 0:Ts:T_end;
+N     = numel(t_vec);
+
+%% MEAL VECTOR (same length as t_vec)
+meal = zeros(size(t_vec));
+for m = 1:numel(meal_times)
+    start_t = meal_times(m);
+    stop_t  = meal_times(m) + meal_duration;
+    meal(t_vec >= start_t & t_vec < stop_t) = meal_sizes(m);
+end
+
+%% BERGMAN MODEL PARAMETERS
+p1 = 0.028;
+p2 = 0.025;
+p3 = 0.000013;
+
+Gb = 90;   % basal glucose
+Ib = 15;   % basal insulin
+
+%% STATE VARIABLES
+G = zeros(1, N);   G(1) = Gb;
+X = zeros(1, N);   X(1) = 0;
+I = zeros(1, N);   I(1) = Ib;
+
+%% CONTROLLER MEMORY
+e_prev = 0;
+e_int  = 0;
+
+%% CONTROL OUTPUT (INSULIN INPUT)
+u_vec = zeros(1, N);
+
+%% MAIN SIMULATION LOOP
+for k = 1:N-1
+
+    % --- Meal glucose input ---
+    D = meal(k);
+
+    % --- PID control on glucose error ---
+    error = G_target - G(k);      % positive error => glucose below target
+    e_int = e_int + error * Ts;
+    e_der = (error - e_prev) / Ts;
+    e_prev = error;
+
+    U = Kp*error + Ki*e_int + Kd*e_der;  % raw controller output
+
+    % Saturation (physiological limits)
+    U = max(U, 0);    % no negative insulin
+    U = min(U, 5);    % upper limit (arbitrary units)
+    u_vec(k) = U;
+
+    % --- Bergman minimal model equations ---
+    dG = -p1*(G(k) - Gb) - X(k)*G(k) + D;
+    dX = -p2*X(k) + p3*(I(k) - Ib);
+    dI = -(1/60)*(I(k) - Ib) + U;
+
+    % Euler integration
+    G(k+1) = G(k) + Ts*dG;
+    X(k+1) = X(k) + Ts*dX;
+    I(k+1) = I(k) + Ts*dI;
+end
+
+% Extend last control value
+u_vec(end) = u_vec(end-1);
+
+%% EXTRA SIGNALS FOR DASHBOARD
+G_target_vec = G_target * ones(size(t_vec));  % for plotting target line
+error_vec    = G_target_vec - G;              % controller error signal
+
+%% VARIABLES FOR FLASK (match names expected in app.py)
+g_vec    = G;        % glucose trajectory
+i_vec    = I;        % insulin trajectory
+meal_vec = meal;     % meal profile
+
+%% SAVE TO .MAT (ADJUST PATH IF NEEDED)
+matFilePath = 'C:\Users\physi\Blood-Glucose-Regulator\ap_dashboard\latest_results.mat';
+
+save(matFilePath, ...
+    't_vec', 'g_vec', 'i_vec', 'u_vec', 'meal_vec', ...
+    'G_target_vec', 'error_vec');
+
+disp("Simulation complete. MAT file updated!");
