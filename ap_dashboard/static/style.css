@@ -1,4 +1,9 @@
-body {
+:root {
+    /* Default user agent font is usually 16px; we add 5px to increase font size globally */
+    font-size: 23px; /* 16 + 5px => 21px */
+}
+
+html, body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     background: #020617;
     color: #e5e7eb;
@@ -17,9 +22,12 @@ h1, h2 {
 
 .card {
     background: #020617;
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 20px;
+    /* Increased border-radius by 10px */
+    border-radius: 24px;
+    /* Increased padding by 10px (16->26) */
+    padding: 26px;
+    /* Increase vertical spacing for visual consistency */
+    margin-bottom: 30px;
     box-shadow: 0 12px 25px rgba(0,0,0,0.5);
     border: 1px solid #1f2937;
 }
