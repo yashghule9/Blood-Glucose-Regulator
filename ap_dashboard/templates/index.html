@@ -1,111 +1,334 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Artificial Pancreas – Results Viewer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8" />
+  <title>Artificial Pancreas – Analysis Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    header {
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin: 0;
+    }
+    .btn {
+      background: #22c55e;
+      border: none;
+      padding: 0.4rem 0.9rem;
+      border-radius: 999px;
+      color: #022c22;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .container {
+      padding: 1.5rem 2rem 2rem;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: #020617;
+      border-radius: 0.8rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid #1e293b;
+    }
+    .card-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+      margin-bottom: 0.4rem;
+    }
+    .card-value {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
+      gap: 1.5rem;
+    }
+    .panel {
+      background: #020617;
+      border-radius: 0.8rem;
+      padding: 1rem;
+      border: 1px solid #1f2937;
+    }
+    .panel h2 {
+      font-size: 1rem;
+      margin: 0 0 0.6rem 0;
+    }
+    canvas {
+      max-height: 320px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-    <h1>Artificial Pancreas – MATLAB Results</h1>
+  <header>
+    <h1>Blood Glucose Regulation – Artificial Pancreas</h1>
+    <button class="btn" onclick="refreshAll()">Refresh Data</button>
+  </header>
 
-    <button id="refreshBtn">🔄 Refresh Data</button>
-
-    <div class="charts">
-        <div class="card">
-            <h2>Glucose</h2>
-            <canvas id="glucoseChart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Insulin & Meal</h2>
-            <canvas id="insulinChart"></canvas>
-        </div>
+  <div class="container">
+    <!-- Summary cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Mean Glucose</div>
+        <div class="card-value" id="mean-glucose">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Min / Max Glucose</div>
+        <div class="card-value" id="minmax-glucose">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Std Dev</div>
+        <div class="card-value" id="std-glucose">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Time In Range (70–180)</div>
+        <div class="card-value" id="tir">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Time Below Range</div>
+        <div class="card-value" id="tbr">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Time Above Range</div>
+        <div class="card-value" id="tar">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Hypo / Hyper Episodes</div>
+        <div class="card-value" id="episodes">–</div>
+      </div>
+      <div class="card">
+        <div class="card-title">IAE / ISE</div>
+        <div class="card-value" id="errors">–</div>
+      </div>
     </div>
-</div>
 
-<script>
-let glucoseChart, insulinChart;
+    <div class="grid">
+      <div class="panel">
+        <h2>Glucose vs Time</h2>
+        <canvas id="glucoseChart"></canvas>
+      </div>
+      <div class="panel">
+        <h2>Insulin Input & Meals</h2>
+        <canvas id="insulinChart"></canvas>
+        <canvas id="mealChart" style="margin-top: 1rem;"></canvas>
+      </div>
+    </div>
+  </div>
 
-async function fetchResults() {
-    const res = await fetch("/api/results");
-    return await res.json();
-}
+  <script>
+    let glucoseChart, insulinChart, mealChart;
 
-function drawCharts(data) {
-    const labels = data.t || [];
-    const glucose = data.glucose || [];
-    const insulin = data.insulin || [];
-    const meal = data.meal || [];
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      return await res.json();
+    }
 
-    const ctxG = document.getElementById("glucoseChart").getContext("2d");
-    const ctxI = document.getElementById("insulinChart").getContext("2d");
+    function initOrUpdateChart(chartRef, ctx, config) {
+      if (chartRef) {
+        chartRef.data = config.data;
+        chartRef.options = config.options;
+        chartRef.update();
+        return chartRef;
+      } else {
+        return new Chart(ctx, config);
+      }
+    }
 
-    if (glucoseChart) glucoseChart.destroy();
-    if (insulinChart) insulinChart.destroy();
+    async function loadResults() {
+      const data = await fetchJSON("/api/results");
 
-    glucoseChart = new Chart(ctxG, {
+      const t = data.t || [];
+      const glucose = data.glucose || [];
+      const insulin = data.insulin_input || [];
+      const meal = data.meal || [];
+      const target = data.target || [];
+
+      // Glucose chart with target
+      const gCtx = document.getElementById("glucoseChart").getContext("2d");
+      glucoseChart = initOrUpdateChart(glucoseChart, gCtx, {
         type: "line",
         data: {
-            labels: labels,
-            datasets: [{
-                label: "Glucose",
-                data: glucose,
-                borderWidth: 2,
-                fill: false,
-                pointRadius: 0
-            }]
+          labels: t,
+          datasets: [
+            {
+              label: "Glucose (mg/dL)",
+              data: glucose,
+              borderWidth: 2,
+              tension: 0.15,
+            },
+            {
+              label: "Target (100 mg/dL)",
+              data: target.length ? target : glucose.map(() => 100),
+              borderWidth: 1,
+              borderDash: [6, 4],
+            }
+          ]
         },
         options: {
-            responsive: true,
-            scales: {
-                x: { title: { display: true, text: "Time (min)" } },
-                y: { title: { display: true, text: "Glucose (arb units)" } }
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Time (min)", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#1f2937" },
+            },
+            y: {
+              title: { display: true, text: "Glucose (mg/dL)", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#111827" },
+              suggestedMin: 40,
+              suggestedMax: 260,
             }
+          }
         }
-    });
+      });
 
-    insulinChart = new Chart(ctxI, {
+      // Insulin chart
+      const iCtx = document.getElementById("insulinChart").getContext("2d");
+      insulinChart = initOrUpdateChart(insulinChart, iCtx, {
         type: "line",
         data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: "Insulin",
-                    data: insulin,
-                    borderWidth: 2,
-                    fill: false,
-                    pointRadius: 0
-                },
-                {
-                    label: "Meal",
-                    data: meal,
-                    borderWidth: 2,
-                    fill: false,
-                    pointRadius: 0,
-                    borderDash: [5,5]
-                }
-            ]
+          labels: t,
+          datasets: [
+            {
+              label: "Insulin Infusion (U/min)",
+              data: insulin,
+              borderWidth: 2,
+              tension: 0.15,
+            }
+          ]
         },
         options: {
-            responsive: true,
-            scales: {
-                x: { title: { display: true, text: "Time (min)" } },
-                y: { title: { display: true, text: "Arbitrary units" } }
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Time (min)", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#1f2937" },
+            },
+            y: {
+              title: { display: true, text: "Insulin (arb. units)", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#111827" },
             }
+          }
         }
-    });
-}
+      });
 
-async function refresh() {
-    const data = await fetchResults();
-    drawCharts(data);
-}
+      // Meal chart
+      const mCtx = document.getElementById("mealChart").getContext("2d");
+      mealChart = initOrUpdateChart(mealChart, mCtx, {
+        type: "bar",
+        data: {
+          labels: t,
+          datasets: [
+            {
+              label: "Meal Input",
+              data: meal,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Time (min)", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#1f2937" },
+            },
+            y: {
+              title: { display: true, text: "Relative Carb Input", color: "#9ca3af" },
+              ticks: { color: "#9ca3af" },
+              grid: { color: "#111827" },
+            }
+          }
+        }
+      });
+    }
 
-document.getElementById("refreshBtn").addEventListener("click", refresh);
+    async function loadSummary() {
+      const s = await fetchJSON("/api/summary");
 
-// Page load pe ek baar data lao
-window.addEventListener("load", refresh);
-</script>
+      const fmt = (v, suf = "") =>
+        v == null ? "–" : v.toFixed(1) + (suf ? " " + suf : "");
+
+      document.getElementById("mean-glucose").textContent =
+        fmt(s.g_mean, "mg/dL");
+
+      document.getElementById("minmax-glucose").textContent =
+        (s.g_min == null || s.g_max == null)
+          ? "–"
+          : s.g_min.toFixed(1) + " / " + s.g_max.toFixed(1) + " mg/dL";
+
+      document.getElementById("std-glucose").textContent =
+        fmt(s.g_std, "mg/dL");
+
+      document.getElementById("tir").textContent =
+        fmt(s.time_in_range_pct, "%");
+
+      document.getElementById("tbr").textContent =
+        fmt(s.time_below_range_pct, "%");
+
+      document.getElementById("tar").textContent =
+        fmt(s.time_above_range_pct, "%");
+
+      document.getElementById("episodes").textContent =
+        (s.hypo_episodes == null || s.hyper_episodes == null)
+          ? "–"
+          : s.hypo_episodes + " hypo / " + s.hyper_episodes + " hyper";
+
+      document.getElementById("errors").textContent =
+        (s.iae == null || s.ise == null)
+          ? "–"
+          : "IAE " + s.iae.toFixed(1) + ", ISE " + s.ise.toFixed(1);
+    }
+
+    async function refreshAll() {
+      await Promise.all([loadResults(), loadSummary()]);
+    }
+
+    // Initial load
+    refreshAll();
+
+    // Optional: auto-refresh every 15 seconds
+    // setInterval(refreshAll, 15000);
+  </script>
 </body>
 </html>
